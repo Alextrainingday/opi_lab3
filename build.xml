@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="lab3" default="build">
+
+    <property file="build.properties"/>
+
+    <path id="classpath">
+        <fileset dir="${lib.dir}" includes="*.jar"/>
+        <fileset dir="${main.dir}" includes="*.java"/>
+    </path>
+
+    <path id="classpath.test">
+        <pathelement location="${junit}"/>
+        <pathelement location="${hamcrest}"/>
+        <pathelement location="${classes.dir}"/>
+    </path>
+
+    <taskdef resource="net/sf/antcontrib/antcontrib.properties">
+        <classpath>
+            <pathelement location="${contrib}"/>
+        </classpath>
+    </taskdef>
+
+    <taskdef resource="net/sf/antcontrib/antlib.xml">
+        <classpath>
+            <pathelement location="${contrib}"/>
+        </classpath>
+    </taskdef>
+
+    <!-- COMPILE-ONLY -->
+    <target name="compile-only">
+        <echo message="***** COMPILE-ONLY STARTED *****"/>
+        <property name="classes.dir.local" value="${classes.dir}"/>
+        <property name="test.classes.dir.local" value="${test.classes.dir}"/>
+
+        <mkdir dir="${classes.dir.local}"/>
+        <mkdir dir="${test.classes.dir.local}"/>
+        
+        <javac srcdir="${src.dir}" destdir="${classes.dir.local}" classpathref="classpath" includeantruntime="false"/>
+        <echo message="***** COMPILE-ONLY COMPLETED *****"/>
+    </target>
+
+    <target name="compile" depends="clean, compile-only"></target>
+
+    <!-- CLEAN -->
+    <target name="clean">
+        <echo message="***** CLEAN STARTED *****"/>
+        <delete dir="${build.dir}"/>
+        <delete dir="${junit.report.dir}"/>
+        <echo message="***** CLEAN COMPLETED *****"/>
+    </target>
+
+    <!-- BUILD FOR TEAM -->
+    <target name="build-for-team">
+        <echo message="***** BUILD FOR TEAM STARTED (NO CLEAN) *****"/>
+
+        <property name="classes.dir.local" value="${classes.dir}"/>
+        <property name="build.dir.lib.local" value="${build.dir.lib}"/>
+        <property name="build.web.xml.local" value="${build.web.xml}"/>
+
+        <mkdir dir="${classes.dir.local}"/>
+
+        <copy todir="${build.dir}">
+            <fileset dir="${web.dir}">
+                <exclude name="**/WEB-INF/lib/**"/>
+            </fileset>
+        </copy>
+
+        <copy todir="${build.dir.lib.local}">
+            <fileset dir="${lib.dir}"/>
+        </copy>
+
+        <copy todir="${classes.dir.local}">
+            <fileset dir="${build.dir}/WEB-INF/classes"/>
+        </copy>
+
+        <jar destfile="${build.dir}/${ant.project.name}.jar" basedir="${classes.dir.local}"/>
+
+        <war destfile="${build.dir}/${ant.project.name}.war" webxml="${build.web.xml.local}">
+            <fileset dir="${build.dir}">
+                <exclude name="**/WEB-INF/lib/**"/>
+                <exclude name="**/${ant.project.name}.jar"/>
+                <exclude name="**/${ant.project.name}.war"/> </fileset>
+        </war>
+
+        <echo message="***** BUILD FOR TEAM COMPLETED (NO CLEAN) *****"/>
+    </target>
+
+    <!-- TEAM -->
+    <target name="team">
+        <echo message="***** TEAM TARGET STARTED *****"/>
+
+        <property name="git.dir" location="/home/excel/Desktop/prog-eng/lab3"/>
+        <exec executable="git" dir="${git.dir}" outputproperty="origsha">
+            <arg line="rev-parse HEAD"/>
+        </exec>
+        
+        <property name="tmp.build" location="/tmp/lab3-team-build"/>
+        <delete dir="${tmp.build}"/>
+        <mkdir dir="${tmp.build}"/>
+        <mkdir dir="${tmp.build}/team"/>
+
+        <property name="revisions" value="HEAD,HEAD~1,HEAD~2,HEAD~3"/>
+
+        <for list="${revisions}" param="rev">
+            <sequential>
+                <echo message="----------------------------------------"/>
+                <echo message="Building revision @{rev}"/>
+                <echo message="----------------------------------------"/>
+
+                <exec executable="git" dir="${git.dir}" failonerror="true">
+                    <arg line="switch --detach @{rev}"/>
+                </exec>
+
+                <property name="rev.build.dir" location="${tmp.build}/@{rev}"/>
+                <mkdir dir="${rev.build.dir}"/>
+
+                <copy todir="${rev.build.dir}">
+                    <fileset dir="${git.dir}">
+                        <include name="build.xml"/>
+                        <include name="src/**"/>
+                        <include name="lib/**"/>
+                        <include name="WEB-INF/**"/>
+                    </fileset>
+                </copy>
+
+                <property name="tmp.classes.dir" location="${rev.build.dir}/WEB-INF/classes"/>
+                <property name="tmp.build.dir.lib" location="${rev.build.dir}/WEB-INF/lib"/>
+                <property name="tmp.web.xml" location="${rev.build.dir}/WEB-INF/web.xml"/>
+
+                <ant antfile="${rev.build.dir}/build.xml" target="compile-only" inheritAll="true">
+                    <property name="build.dir" value="${rev.build.dir}"/>
+                    <property name="classes.dir" value="${tmp.classes.dir}"/>
+                    <property name="test.classes.dir" value="${rev.build.dir}/test/classes"/>
+                </ant>
+
+                <ant antfile="${rev.build.dir}/build.xml" target="build-for-team" inheritAll="true">
+                    <property name="build.dir" value="${rev.build.dir}"/>
+                    <property name="classes.dir" value="${tmp.classes.dir}"/>
+                    <property name="build.dir.lib" value="${tmp.build.dir.lib}"/>
+                    <property name="build.web.xml" value="${tmp.web.xml}"/>
+                </ant>
+
+                <move file="${rev.build.dir}/${ant.project.name}.jar"
+                    tofile="${tmp.build}/team/${ant.project.name}-@{rev}.jar"/>
+            </sequential>
+        </for>
+
+        <echo message="Restoring original state ${origsha}"/>
+        <exec executable="git" dir="${git.dir}" failonerror="true">
+            <arg line="checkout ${origsha}"/>
+        </exec>
+
+        <zip destfile="${git.dir}/ant/build/team-archives.zip" basedir="${tmp.build}/team" includes="*.jar"/>
+
+        <echo message="***** TEAM TARGET COMPLETED *****"/>
+    </target>
+
+
+
+    <!-- TEST -->
+    <target name="test" depends="build">
+        <echo message="***** TEST STARTED *****"/>
+        <mkdir dir="${test.classes.dir}"/>
+        <mkdir dir="${junit.report.dir}"/>
+        <javac destdir="${test.classes.dir}" srcdir="${test.dir}" includeantruntime="false" encoding="utf-8">
+            <classpath refid="classpath.test"/>
+        </javac>
+        <junit printsummary="on" haltonfailure="true" haltonerror="true">
+            <classpath>
+                <path refid="classpath.test"/>
+                <pathelement location="${test.classes.dir}"/>
+            </classpath>
+            <batchtest fork="yes" todir="${junit.report.dir}">
+                <formatter type="xml"/>
+                <fileset dir="${test.dir}" includes="*Test.java"/>
+            </batchtest>
+        </junit>
+        <echo message="***** TEST COMPLETED *****"/>
+    </target>
+
+    <!-- BUILD -->
+    <target name="build" depends="compile">
+        <echo message="***** BUILD STARTED *****"/>
+        <copy todir="${build.dir}">
+            <fileset dir="${web.dir}"/>
+        </copy>
+        <copy todir="${build.dir.lib}">
+            <fileset dir="${lib.dir}"/>
+        </copy>
+        <copy todir="${classes.dir}">
+            <fileset dir="${resources.dir}"/>
+        </copy>
+        <jar destfile="${build.dir}/${ant.project.name}.jar">
+            <fileset dir="${classes.dir}"/>
+            <manifest>
+                <attribute name="Created-By" value="Pelmeshka"/>
+                <attribute name="Manifest-Version" value="1.0"/>
+                <attribute name="Main-Class" value="NoClass"/>
+            </manifest>
+        </jar>
+        <war destfile="${build.dir}/${ant.project.name}.war" webxml="${build.web.xml}">
+            <fileset dir="${build.dir}"/>
+            <manifest>
+                <attribute name="Created-By" value="Pelmeshka"/>
+                <attribute name="Manifest-Version" value="1.0"/>
+                <attribute name="Main-Class" value="NoClass"/>
+            </manifest>
+        </war>
+        <echo message="***** BUILD COMPLETED *****"/>
+    </target>
+
+    <!-- XML -->
+    <target name="xml">
+        <echo message="***** XML STARTED *****"/>
+        <echo>XML project files validation...</echo>
+        <xmlvalidate lenient="true">
+            <fileset dir="./" includes="**/*.xml">
+                <exclude name=".idea/**"/>
+            </fileset>
+        </xmlvalidate>
+        <echo message="***** XML COMPLETED *****"/>
+    </target>
+
+    <!-- NATIVE2ASCII -->
+    <target name="native2ascii">
+        <echo message="***** NATIVE2ASCII STARTED *****"/>
+        <delete dir="${native2ascii.resources}"/>
+        <native2ascii src="${resources.dir}"
+                      dest="${native2ascii.resources}"
+                      includes="**/*.properties"/>
+        <echo message="***** NATIVE2ASCII COMPLETED *****"/>
+    </target>
+
+    <!-- ENV -->
+    <target name="env" depends="clean">
+        <echo message="***** ENV STARTED *****"/>
+
+        <mkdir dir="${classes.dir}"/>
+        <javac srcdir="${main.dir}" destdir="${classes.dir}" classpathref="classpath" source="${compile.version}"
+               includeantruntime="false">
+            <compilerarg line="${vm.args}"/>
+        </javac>
+        <copy todir="${classes.dir}">
+            <fileset dir="${resources.dir}"/>
+        </copy>
+        <antcall target="build"/>
+        <copy file="${build.dir}/lab3.war" todir="${scp.dir}"/>
+        <exec executable="/bin/bash">
+            <arg line="${env.script}"/>
+        </exec>
+        <echo message="***** ENV COMPLETED *****"/>
+    </target>
+
+    <!-- REPORT -->
+    <target name="report" depends="test">
+        <echo message="***** REPORT STARTED *****"/>
+
+        <condition property="tests.successful">
+            <not>
+                <isset property="tests.failed" />
+            </not>
+        </condition>
+
+        <if>
+            <isset property="tests.successful" />
+            <then>
+                <junitreport todir="${junit.report.dir}">
+                    <fileset dir="${junit.report.dir}" includes="TEST-*.xml" />
+                    <report todir="${junit.report.dir}" />
+                </junitreport>
+
+                <move todir="${svn.dir}">
+                    <fileset dir="${junit.report.dir}" includes="TESTS-*.xml"/>
+                </move>
+
+                <exec executable="svn">
+                    <arg value="add" />
+                    <arg value="${svn.dir}/*" />
+                </exec>
+                <exec executable="svn">
+                    <arg value="update" />
+                    <arg value="${svn.dir}"/>
+                </exec>
+                <exec executable="svn">
+                    <arg value="commit" />
+                    <arg value="${svn.dir}"/>
+                    <arg value="-m" />
+                    <arg value="Update report" />
+                </exec>
+            </then>
+            <else>
+                <echo message="Tests were not successful. Skipping report generation." />
+            </else>
+        </if>
+        <echo message="***** REPORT COMPLETED *****"/>
+    </target>
+
+    <!-- MUSIC -->
+    <target name="music" depends="build">
+        <echo message="***** MUSIC STARTED *****"/>
+        <exec executable="mpg123">
+            <arg value="${resources.dir}/sound.mp3"/>
+        </exec>
+        <echo message="***** MUSIC COMPLETED *****"/>
+    </target>
+
+    <!-- SCP -->
+    <target name="scp" depends="build">
+        <echo message="***** SCP STARTED *****"/>
+        <exec executable="scp">
+            <arg value="${build.dir}/lab3.war"/>
+            <arg value="${scp.user}@${scp.host}:${scp.remote.dir}"/>
+        </exec>
+        <echo message="***** SCP COMPLETED *****"/>
+    </target>
+
+    <!-- DOC -->
+    <target name="doc" depends="build">
+        <echo message="***** DOC STARTED *****"/>
+
+        <mkdir dir="${build.dir}/javadoc"/>
+        <javadoc destdir="${build.dir}/javadoc" sourcepath="${src.dir}" classpathref="classpath">
+            <packageset dir="${src.dir}"/>
+        </javadoc>
+        <checksum file="${build.dir}/lab3.jar" algorithm="MD5" property="jar.md5"/>
+        <checksum file="${build.dir}/lab3.jar" algorithm="SHA" property="jar.sha1"/>
+        <jar destfile="${build.dir}/lab3-doc.jar">
+            <fileset dir="${classes.dir}"/>
+            <manifest>
+                <attribute name="MD5" value="${jar.md5}"/>
+                <attribute name="SHA1" value="${jar.sha1}"/>
+            </manifest>
+            <zipfileset dir="${build.dir}/javadoc" prefix="javadoc"/>
+        </jar>
+
+        <echo message="***** DOC COMPLETED *****"/>
+    </target>
+
+    <!-- ALT -->
+    <target name="alt" depends="build">
+        <echo message="***** ALT STARTED *****"/>
+
+        <mkdir dir="${build.dir}/alt"/>
+
+        <copy todir="${build.dir}/alt">
+            <fileset dir="${src.dir}"/>
+            <fileset dir="${resources.dir}"/>
+        </copy>
+
+        <property file="alt.properties"/>
+
+        <replaceregexp byline="true">
+            <regexp pattern="${oldName}"/>
+            <substitution expression="${newName}"/>
+            <fileset dir="${build.dir}/alt" includes="**/*.java"/>
+        </replaceregexp>
+
+        <jar destfile="${build.dir}/lab3-alt.jar">
+            <fileset dir="${build.dir}/alt"/>
+        </jar>
+
+        <echo message="***** ALT COMPLETED *****"/>
+    </target>
+
+
+    
+    <!-- HISTORY -->
+    <target name="history">
+        <echo message="***** HISTORY TARGET STARTED *****"/>
+
+        <!-- Try last 10 SVN revisions -->
+        <for list="HEAD,HEAD-1,HEAD-2,HEAD-3,HEAD-4,HEAD-5,HEAD-6,HEAD-7,HEAD-8,HEAD-9" param="rev">
+            <sequential>
+                <echo message="Trying revision ${rev}"/>
+                
+                <exec executable="svn">
+                    <arg value="update"/>
+                    <arg value="-r"/>
+                    <arg value="${rev}"/>
+                </exec>
+                
+                <antcall target="compile"/>
+                
+                <!-- Check if compile succeeded -->
+                <condition property="compile.success">
+                    <available file="${classes.dir}"/>
+                </condition>
+                
+                <fail unless="compile.success"/>
+            </sequential>
+        </for>
+
+        <echo message="***** HISTORY TARGET COMPLETED *****"/>
+    </target>
+
+
+    <!-- DIFF -->
+    <target name="diff">
+        <echo message="***** DIFF TARGET STARTED *****"/>
+
+        <!-- Step 1: SVN status -->
+        <exec executable="svn">
+            <arg value="status"/>
+            <redirector output="${svn.dir}/svn-status.txt"/>
+        </exec>
+
+        <!-- Step 2: Load modified class files into a property -->
+        <loadfile property="class.file.list" srcFile="${svn.dir}/svn-status.txt">
+            <filterchain>
+                <!-- Only .class files -->
+                <linecontains>
+                    <contains value=".class"/>
+                </linecontains>
+                <!-- Remove first 8 chars (status symbols like 'M', 'A', etc.) -->
+                <tokenfilter>
+                    <replaceregex pattern="^.{8}(.*)$" replace="\1"/>
+                    <trim/>
+                </tokenfilter>
+            </filterchain>
+        </loadfile>
+
+        <!-- Step 3: Convert newlines to commas for foreach -->
+        <property name="class.files.list.comma">
+            <value>${class.file.list}</value>
+        </property>
+        <replaceregexp property="class.files.list.comma" byline="false" match="\s+" replace=","/>
+
+        <!-- Step 4: Commit each file -->
+        <foreach target="svn-commit-file" list="${class.files.list.comma}" param="file"/>
+
+        <echo message="***** DIFF TARGET COMPLETED *****"/>
+    </target>
+
+    <target name="svn-commit-file" unless="file.empty">
+        <echo message="Committing ${file}"/>
+        <exec executable="svn" failonerror="false">
+            <arg value="commit"/>
+            <arg value="${file}"/>
+            <arg value="-m"/>
+            <arg value="Auto-committing modified class ${file}"/>
+        </exec>
+    </target>
+</project>
