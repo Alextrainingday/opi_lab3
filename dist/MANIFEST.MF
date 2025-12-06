@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Ant-Version: Apache Ant 1.10.14
+Created-By: 17.0.16+8-Ubuntu-0ubuntu124.04.1 (Ubuntu)
+Main-Class: beans.ResultBean
+Version: 1.0.0
+

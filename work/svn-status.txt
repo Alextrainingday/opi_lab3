@@ -1,0 +1,1 @@
+svn: warning: W155007: '/home/excel/Desktop/prog-eng/lab3' is not a working copy

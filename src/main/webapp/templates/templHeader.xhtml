@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ui="http://java.sun.com/jsf/facelets"
+      xmlns:h="http://java.sun.com/jsf/html">
+<body>
+<ui:composition>
+    <div class="header__row">
+        <div class="header__title">
+            <a href="https://github.com/CandyGoose/Web_programming_SE/tree/main/lab3">#{msgs.header_link_text}</a>
+        </div>
+        <div class="header__menu menu">
+            <div class="menu__icon">
+                <span/>
+            </div>
+            <div class="menu__body">
+                <ul class="menu__list">
+                    <li class="menu__item"><h:link outcome="index">#{msgs.start_link_text}</h:link></li>
+                    <li class="menu__item"><h:link outcome="main">#{msgs.main_link_text}</h:link></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</ui:composition>
+</body>
+</html>
